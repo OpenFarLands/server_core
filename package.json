@@ -1,5 +1,5 @@
 {
-  "name": "core",
+  "name": "server_core",
   "version": "1.0.0",
   "description": "The server core plugin",
   "main": "index.js",
