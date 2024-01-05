@@ -1,6 +1,6 @@
 import { CommandPermissionLevel } from "bdsx/bds/command";
 import { MinecraftPacketIds } from "bdsx/bds/packetids";
-import { DisconnectPacket } from "bdsx/bds/packets";
+import { DisconnectPacket, TextPacket } from "bdsx/bds/packets";
 import { command } from "bdsx/command";
 import { CANCEL } from "bdsx/common";
 import { events } from "bdsx/event";
@@ -13,6 +13,10 @@ const getPrefix = (service: string) => {
     const time = ("0" + date.getHours()).slice(-2) + ":" + ("0" + date.getMinutes()).slice(-2) + ":" + ("0" + date.getSeconds()).slice(-2);
     return `${time.cyan} [${service}]`;
 };
+
+/**
+ * Better logging
+ */
 
 events.serverLog.on((log, color) => {
     if (log.includes("Running AutoCompaction")) return CANCEL;
@@ -35,10 +39,11 @@ events.command.on((command, name, ctx) => {
     console.log(getPrefix("Command"), `<${name}> ${command}`);
 });
 
-events.serverOpen.on(() => {
-    bedrockServer.executeCommand(`gamerule spawnradius 128`);
-    bedrockServer.executeCommand(`gamerule showcoordinates true`);
 
+/**
+ * Restart
+ */
+events.serverOpen.on(() => {
     command.register("restart", "restart the server", CommandPermissionLevel.Operator).overload((param, origin, output) => {
         console.log("restart in 30 seconds");
         bedrockServer.executeCommand(`tellraw @a {"rawtext":[{"text":"§a§lРестарт через 30 секунд!"}]}`);
@@ -55,18 +60,45 @@ events.serverOpen.on(() => {
     }, {});
 });
 
-const Restartinterval = setInterval(() => {
+
+const restartInterval = setInterval(() => {
     if (bedrockServer.isClosed()) {
-        clearInterval(Restartinterval);
+        clearInterval(restartInterval);
         return;
     }
 
-    let date = new Date();
+    const date = new Date();
     if (date.getHours() === 8 && date.getMinutes() === 30) {
         bedrockServer.executeCommand("restart");
     }
 }, 60 * 1000);
 
+/**
+ * Scheduled message into the chat. 
+ */
+let messageSent = 0;
+const announcementInterval = setInterval(() => {
+    if (bedrockServer.isClosed()) {
+        clearInterval(restartInterval);
+        return;
+    }
+
+    const pkt = TextPacket.allocate();
+    pkt.type = TextPacket.Types.Announcement;
+    if (messageSent >= 4) {
+        pkt.message = "§a§lИграя на сервере вы соглашаетесь с нашими правилами.";
+        messageSent = 0;
+    } else {
+        pkt.message = "§a§lНаш сайт: §6far-lands.top";
+        messageSent++;
+    }
+    for (const player of bedrockServer.level.getPlayers()) {
+        player.sendNetworkPacket(pkt);
+    }
+    pkt.dispose();
+}, 1000000);
+
 events.serverClose.on(() => {
-    clearInterval(Restartinterval)
-})
+    clearInterval(restartInterval);
+    clearInterval(announcementInterval);
+});
